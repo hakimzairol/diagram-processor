@@ -1,0 +1,7 @@
+# A clean requirements file for Streamlit Cloud
+
+streamlit
+python-dotenv
+requests
+psycopg2-binary==2.9.9
+pandas

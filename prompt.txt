@@ -1,0 +1,12 @@
+From the image, identify the main group identifier and the main activity title (e.g., 'IMPIAN') as 'activity_name'.
+The K in the picture is an acronym that refers to 'Kumpulan' which in English means group.
+Then, for each numbered item under the activity_name, extract its item number as 'item_no' and its text as 'description'.
+Return a single JSON object with the following structure:
+{
+  "group_name": "string",
+  "activity_name": "string",
+  "items": [
+    {"item_no": number, "description": "string"}
+  ]
+}
+Extract text accurately. Do not summarize. Ensure all numbered items are captured.
