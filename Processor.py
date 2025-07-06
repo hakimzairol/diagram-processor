@@ -176,7 +176,21 @@ elif st.session_state.stage == 'categorize':
         submitted = st.form_submit_button("💾 Save All Categories to Database", use_container_width=True)
 
     if submitted:
+        # Get the latest values from the UI fields
+        group_name_to_save = st.session_state.group_name
+        activity_name_to_save = st.session_state.activity_name
+
+        # --- NEW VALIDATION STEP ---
+        # Check if the group name provided by the user contains at least one digit.
+        if not any(char.isdigit() for char in group_name_to_save):
+            st.error(f"⚠️ Validation Error: The 'Group Name' must contain a number (e.g., 'GRP 1'). Please correct it.")
+            # st.stop() is a powerful command that halts the script here.
+            st.stop()
+
+        # --- Filter the list to only include items the user wants ---
         items_to_save = [item for item in user_inputs if item['include']]
+
+        # Validation now only runs on the items to be saved.
         is_valid = all(item['description'] and item['category'] for item in items_to_save)
 
         if not items_to_save:
@@ -185,9 +199,10 @@ elif st.session_state.stage == 'categorize':
             st.warning("⚠️ For all included items, please ensure a description and category are filled.")
         else:
             with st.spinner("Saving data..."):
-                kumpulan_no = get_kumpulan_number(st.session_state.group_name)
-                activity_name_to_save = st.session_state.activity_name
+                # We can now safely get the number, knowing the validation passed.
+                kumpulan_no = get_kumpulan_number(group_name_to_save)
 
+                # --- The final data to be inserted is now based on the filtered list ---
                 final_data_to_insert = [
                     {
                         'group_no': kumpulan_no,
