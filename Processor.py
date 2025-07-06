@@ -122,28 +122,33 @@ elif st.session_state.stage == 'categorize':
     # --- The Main Form with Card Layout ---
     existing_cats = db_manager.fetch_distinct_category_names(schema)
     new_cat_option = "-- Add New Category --"
-    category_options = existing_cats + [new_cat_option]
+
+    # --- THIS IS THE KEY FIX ---
+    # We now put the "new category" option FIRST in the list.
+    # This makes it the default choice in the dropdown, ensuring the
+    # text input box for a new category is always visible by default.
+    category_options = [new_cat_option] + sorted(existing_cats)
+
 
     with st.form("category_form"):
         user_inputs = []
         st.markdown("###### Items to Categorize")
-        
+
         for i, item in enumerate(items_to_process):
             with st.container(border=True):
                 original_description = item.get('description', 'No description found')
-                
+
                 col1, col2 = st.columns([3, 2])
-                
+
                 with col1:
-                    # --- THIS IS THE KEY CHANGE ---
-                    # The description field is now editable.
                     edited_description = col1.text_input(
-                        "Description", 
-                        value=original_description, 
+                        "Description",
+                        value=original_description,
                         key=f"desc_{i}"
                     )
 
                 with col2:
+                    # The dropdown now defaults to "-- Add New Category --"
                     choice = col2.selectbox("Category", options=category_options, key=f"choice_{i}")
 
                     final_category = ""
@@ -152,10 +157,9 @@ elif st.session_state.stage == 'categorize':
                         final_category = new_cat_input.strip()
                     else:
                         final_category = choice
-                    
-                    # Append a dictionary with the POTENTIALLY EDITED description
+
                     user_inputs.append({'description': edited_description, 'category': final_category})
-        
+
         st.markdown("")
         submitted = st.form_submit_button("💾 Save All Categories to Database", use_container_width=True)
 
@@ -188,7 +192,7 @@ elif st.session_state.stage == 'categorize':
                     st.balloons()
                 else:
                     st.error("❌ No records were inserted. An error occurred.")
-    
+
     if st.button("Process Another Image"):
         reset_to_setup()
         st.rerun()
