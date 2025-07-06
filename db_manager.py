@@ -162,7 +162,35 @@ def get_all_data_from_all_schemas() -> list[dict]:
             all_data.append(row)
     return all_data
 
+# Add this new function to the end of db_manager.py
 
+def delete_session_schema(session_schema_name: str) -> bool:
+    """
+    Deletes an entire schema and all its contents (tables, views, etc.).
+    This is a destructive and irreversible action.
+    """
+    # We use sanitize_name one more time as a final safety check.
+    sanitized_name = sanitize_name(session_schema_name)
+    if not sanitized_name:
+        print(f"❌ Aborted deletion due to invalid schema name: '{session_schema_name}'")
+        return False
+    
+    conn = None
+    try:
+        conn = psycopg2.connect(**config.DB_PARAMS)
+        with conn.cursor() as cur:
+            # DROP SCHEMA ... CASCADE will delete the schema and all objects within it.
+            print(f"🔥 Attempting to delete schema: {sanitized_name}")
+            cur.execute(f"DROP SCHEMA {sanitized_name} CASCADE;")
+        conn.commit()
+        print(f"✅ Schema '{sanitized_name}' deleted successfully.")
+        return True
+    except (Exception, psycopg2.Error) as error:
+        print(f"❌ Error deleting schema '{sanitized_name}': {error}")
+        if conn: conn.rollback()
+        return False
+    finally:
+        if conn: conn.close()
 
 
 
