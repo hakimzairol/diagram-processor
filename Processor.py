@@ -183,7 +183,7 @@ elif st.session_state.stage == 'categorize':
         # --- NEW VALIDATION STEP ---
         # Check if the group name provided by the user contains at least one digit.
         if not any(char.isdigit() for char in group_name_to_save):
-            st.error(f"⚠️ Validation Error: The 'Group Name' must be a number (e.g., '1'). Please correct it.")
+            st.error(f"⚠️ Validation Error: The 'Group Name' must contain a number (e.g., 'GRP 1'). Please correct it.")
             # st.stop() is a powerful command that halts the script here.
             st.stop()
 
