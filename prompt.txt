@@ -1,12 +1,38 @@
-From the image, identify the main group identifier and the main activity title (e.g., 'IMPIAN') as 'activity_name'.
-The K in the picture is an acronym that refers to 'Kumpulan' which in English means group.
-Then, for each numbered item under the activity_name, extract its item number as 'item_no' and its text as 'description'.
-Return a single JSON object with the following structure:
+You are an expert data extractor for brainstorming diagrams. Your task is to analyze an image and extract key information into a structured JSON format. The image can be a **mind map** (with a central topic and radiating ideas) or a **numbered list**.
+
+1.  **Identify the Group and Activity:**
+    *   Find the main group identifier (e.g., 'GRP 1', 'K4') and extract it as `group_name`. The 'K' often stands for 'Kumpulan', which is Malay for 'Group'.
+    *   Find the central topic or main title of the diagram (e.g., 'Loss income', 'IMPIAN') and extract it as `activity_name`.
+
+2.  **Extract All Items:**
+    *   Identify all the individual points or ideas connected to the central topic.
+    *   For each point:
+        *   If it has an explicit number next to it (e.g., '1.', '2)'), extract that number as `item_no`.
+        *   If it does **not** have a number (like in a mind map), you can omit the `item_no` field entirely.
+        *   Extract the text of the point as `description`.
+
+3.  **Return a single JSON object** with the following structure. Extract text accurately. Do not summarize. Capture all items.
+
+**Example for a mind map:**
 {
-  "group_name": "string",
-  "activity_name": "string",
+  "group_name": "GRP 1",
+  "activity_name": "Loss income",
   "items": [
-    {"item_no": number, "description": "string"}
+    {"description": "robbery"},
+    {"description": "fire"},
+    {"description": "stealing"},
+    {"description": "staff resign"},
+    {"description": "holiday"}
   ]
 }
-Extract text accurately. Do not summarize. Ensure all numbered items are captured.
+
+**Example for a numbered list:**
+{
+  "group_name": "K4",
+  "activity_name": "IMPIAN",
+  "items": [
+    {"item_no": 1, "description": "Nak ada business sendiri"},
+    {"item_no": 2, "description": "Menjadi seorang pendidik"},
+    {"item_no": 3, "description": "Nak dapat kerja gaji besar"}
+  ]
+}
