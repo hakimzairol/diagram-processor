@@ -118,68 +118,78 @@ elif st.session_state.stage == 'categorize':
     col3.text_input("Session Schema", value=schema, disabled=True)
     st.markdown("---")
 
-
     # --- The Main Form with Card Layout ---
     existing_cats = db_manager.fetch_distinct_category_names(schema)
     new_cat_option = "-- Add New Category --"
-
-    # --- THIS IS THE KEY FIX ---
-    # We now put the "new category" option FIRST in the list.
-    # This makes it the default choice in the dropdown, ensuring the
-    # text input box for a new category is always visible by default.
     category_options = [new_cat_option] + sorted(existing_cats)
-
 
     with st.form("category_form"):
         user_inputs = []
         st.markdown("###### Items to Categorize")
-
+        
         for i, item in enumerate(items_to_process):
             with st.container(border=True):
                 original_description = item.get('description', 'No description found')
+                
+                # --- NEW: Added a checkbox column ---
+                col_check, col_desc, col_cat = st.columns([1, 4, 3])
+                
+                with col_check:
+                    # By default, all items are included. Uncheck to remove.
+                    include_item = st.checkbox("Include", value=True, key=f"include_{i}")
 
-                col1, col2 = st.columns([3, 2])
-
-                with col1:
-                    edited_description = col1.text_input(
-                        "Description",
-                        value=original_description,
-                        key=f"desc_{i}"
+                with col_desc:
+                    edited_description = st.text_input(
+                        "Description", 
+                        value=original_description, 
+                        key=f"desc_{i}",
+                        label_visibility="collapsed" # Hide the label as it's repetitive
                     )
 
-                with col2:
-                    # The dropdown now defaults to "-- Add New Category --"
-                    choice = col2.selectbox("Category", options=category_options, key=f"choice_{i}")
+                with col_cat:
+                    choice = st.selectbox("Category", options=category_options, key=f"choice_{i}", label_visibility="collapsed")
 
                     final_category = ""
                     if choice == new_cat_option:
-                        new_cat_input = col2.text_input("Enter new category name:", key=f"new_cat_{i}")
+                        new_cat_input = st.text_input("Enter new category name:", key=f"new_cat_{i}")
                         final_category = new_cat_input.strip()
                     else:
                         final_category = choice
-
-                    user_inputs.append({'description': edited_description, 'category': final_category})
-
+                    
+                # Append all data, including the checkbox state
+                user_inputs.append({
+                    'include': include_item, 
+                    'description': edited_description, 
+                    'category': final_category
+                })
+        
         st.markdown("")
         submitted = st.form_submit_button("💾 Save All Categories to Database", use_container_width=True)
 
     if submitted:
-        is_valid = all(item['description'] and item['category'] for item in user_inputs)
+        # --- NEW: Filter the list to only include items the user wants ---
+        items_to_save = [item for item in user_inputs if item['include']]
 
-        if not is_valid:
-            st.warning("⚠️ Please ensure a description and category are filled for all items.")
+        # Validation now only runs on the items to be saved.
+        is_valid = all(item['description'] and item['category'] for item in items_to_save)
+
+        if not items_to_save:
+            st.warning("⚠️ No items were selected to be saved.")
+        elif not is_valid:
+            st.warning("⚠️ For all included items, please ensure a description and category are filled.")
         else:
             with st.spinner("Saving data..."):
                 kumpulan_no = get_kumpulan_number(st.session_state.group_name)
                 activity_name_to_save = st.session_state.activity_name
 
+                # --- The final data to be inserted is now based on the filtered list ---
                 final_data_to_insert = [
                     {
                         'group_no': kumpulan_no,
                         'description': item['description'],
                         'category_name': item['category']
                     }
-                    for item in user_inputs
+                    for item in items_to_save
                 ]
 
                 records_inserted = db_manager.insert_diagram_data(
@@ -190,9 +200,11 @@ elif st.session_state.stage == 'categorize':
                     db_manager.create_category_views(schema)
                     st.success(f"✅ Success! {records_inserted} records were saved.")
                     st.balloons()
+                elif len(final_data_to_insert) == 0:
+                     st.info("No items were marked to be saved to the database.")
                 else:
                     st.error("❌ No records were inserted. An error occurred.")
-
+    
     if st.button("Process Another Image"):
         reset_to_setup()
         st.rerun()
