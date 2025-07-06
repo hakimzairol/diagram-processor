@@ -131,23 +131,33 @@ elif st.session_state.stage == 'categorize':
             with st.container(border=True):
                 original_description = item.get('description', 'No description found')
                 
-                # --- NEW: Added a checkbox column ---
-                col_check, col_desc, col_cat = st.columns([1, 4, 3])
+                # --- LAYOUT FIX: Adjusted column widths and hiding labels ---
+                col_check, col_desc, col_cat = st.columns([0.5, 4, 3]) # Gave checkbox less, but enough, space
                 
                 with col_check:
-                    # By default, all items are included. Uncheck to remove.
-                    include_item = st.checkbox("Include", value=True, key=f"include_{i}")
+                    # Hide the "Include" label for a cleaner look
+                    include_item = st.checkbox(
+                        "Include", 
+                        value=True, 
+                        key=f"include_{i}", 
+                        label_visibility="collapsed" # THIS HIDES THE TEXT
+                    )
 
                 with col_desc:
                     edited_description = st.text_input(
                         "Description", 
                         value=original_description, 
                         key=f"desc_{i}",
-                        label_visibility="collapsed" # Hide the label as it's repetitive
+                        label_visibility="collapsed"
                     )
 
                 with col_cat:
-                    choice = st.selectbox("Category", options=category_options, key=f"choice_{i}", label_visibility="collapsed")
+                    choice = st.selectbox(
+                        "Category", 
+                        options=category_options, 
+                        key=f"choice_{i}", 
+                        label_visibility="collapsed"
+                    )
 
                     final_category = ""
                     if choice == new_cat_option:
@@ -156,7 +166,6 @@ elif st.session_state.stage == 'categorize':
                     else:
                         final_category = choice
                     
-                # Append all data, including the checkbox state
                 user_inputs.append({
                     'include': include_item, 
                     'description': edited_description, 
@@ -167,10 +176,7 @@ elif st.session_state.stage == 'categorize':
         submitted = st.form_submit_button("💾 Save All Categories to Database", use_container_width=True)
 
     if submitted:
-        # --- NEW: Filter the list to only include items the user wants ---
         items_to_save = [item for item in user_inputs if item['include']]
-
-        # Validation now only runs on the items to be saved.
         is_valid = all(item['description'] and item['category'] for item in items_to_save)
 
         if not items_to_save:
@@ -182,7 +188,6 @@ elif st.session_state.stage == 'categorize':
                 kumpulan_no = get_kumpulan_number(st.session_state.group_name)
                 activity_name_to_save = st.session_state.activity_name
 
-                # --- The final data to be inserted is now based on the filtered list ---
                 final_data_to_insert = [
                     {
                         'group_no': kumpulan_no,
