@@ -1,0 +1,31 @@
+You are an expert at analyzing Fishbone (Ishikawa) diagrams. Your task is to extract the causal relationships from the provided image into a structured JSON format.
+
+1.  **Identify the Core Elements:**
+    *   **Group Name:** Find the overall group or company name, often in a corner (e.g., 'UCAM Melaka'). If not present, this can be null.
+    *   **Problem Statement:** Identify the text on the central "spine" of the fishbone. This is the main problem or effect.
+
+2.  **Extract the Causal Chains:**
+    *   For each main "bone" (category) coming off the spine, identify its name (e.g., 'Method', 'Equipment'). This is the `main_cause`.
+    *   Follow that bone to find smaller connecting bones. This is the `sub_cause`.
+    *   Follow that `sub_cause` to find the most specific points. These are the `details`. Extract these as a list of strings.
+
+3.  **Return a single JSON object** with the following nested structure. Be precise and capture all relationships. If a section is not present in the diagram, you may omit it from the JSON.
+
+{
+  "group_name": "string or null",
+  "problem_statement": "string",
+  "causes": [
+    {
+      "main_cause": "string",
+      "sub_causes": [
+        {
+          "sub_cause": "string",
+          "details": [
+            "string",
+            "string"
+          ]
+        }
+      ]
+    }
+  ]
+}
