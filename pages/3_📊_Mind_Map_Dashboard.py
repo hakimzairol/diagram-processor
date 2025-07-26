@@ -1,119 +1,91 @@
+# pages/1_🧠_Mind_Map_Processor.py
 import streamlit as st
-import pandas as pd
-import db_manager # Import our database functions
+import db_manager
+import gemini_client
+import re
+from PIL import Image
+import json
 
-st.set_page_config(
-    page_title="Data Dashboard",
-    page_icon="📊",
-    layout="wide"
-)
+def get_kumpulan_number(group_name_str: str) -> int:
+    if group_name_str:
+        match = re.search(r'\d+', group_name_str)
+        if match: return int(match.group(0))
+    return 0
 
-st.title("📊 Data Dashboard")
-st.markdown("View, filter and export data from all sessions.")
+st.set_page_config(page_title="Mind Map Processor", page_icon="🧠", layout="centered")
 
-# --- Sidebar Filters ---
-st.sidebar.header("Filters")
+if 'stage' not in st.session_state: st.session_state.stage = 'setup'
+if 'extracted_data' not in st.session_state: st.session_state.extracted_data = {}
 
-session_list = ["All Sessions"] + db_manager.get_all_session_schemas()
+def reset_to_setup():
+    st.session_state.stage = 'setup'
+    st.session_state.extracted_data = {}
+    for key in ['activity_name', 'group_name', 'session_name']:
+        if key in st.session_state: del st.session_state[key]
 
-selected_session = st.sidebar.selectbox(
-    "Select a Session:",
-    options=session_list,
-    key='session_selector'
-)
+if st.session_state.stage == 'setup':
+    st.title("🧠 Mind Map & List Processor")
+    st.markdown("Upload a simple list or mind map to extract and categorize items.")
+    
+    session_name = st.text_input("Enter a name for this session (e.g., 'Q1_Marketing_2024')")
+    uploaded_image = st.file_uploader("Upload your image:", type=['jpg', 'jpeg', 'png'])
 
-# --- Session Management (Delete Feature) ---
-if selected_session != "All Sessions":
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("⚙️ Session Management")
-    with st.sidebar.expander("⚠️ Delete This Session"):
-        st.warning(f"This will permanently delete the session '{selected_session}' and all its data. This action cannot be undone.")
-        st.info("To confirm, please type the session name exactly as it appears above and click the button.")
-        confirmation_text = st.text_input("Confirm session name:", key="delete_confirmation")
-        if st.button("DELETE PERMANENTLY", disabled=(confirmation_text != selected_session)):
-            with st.spinner("Deleting session..."):
-                if db_manager.delete_session_schema(selected_session):
-                    st.success(f"Session '{selected_session}' was deleted!")
-                    st.rerun()
+    if uploaded_image: st.image(Image.open(uploaded_image), caption='Uploaded Diagram')
+
+    if st.button("Analyze Image", type="primary", use_container_width=True):
+        if not session_name or not uploaded_image:
+            st.warning("⚠️ Please provide a session name and upload an image.")
+        else:
+            with st.spinner("Processing..."):
+                if not db_manager.setup_mindmap_schema(session_name):
+                    st.error(f"❌ Failed to set up database schema '{session_name}'. Check DB connection.")
                 else:
-                    st.error("An error occurred while trying to delete the session.")
+                    image_bytes = uploaded_image.getvalue()
+                    json_string = gemini_client.get_gemini_response(image_bytes, "prompt.txt")
+                    try:
+                        extracted_info = json.loads(json_string)
+                        if 'items' not in extracted_info: raise ValueError("Missing 'items' key")
+                        st.session_state.extracted_data = {"session_schema": db_manager.sanitize_name(session_name), "info": extracted_info}
+                        st.session_state.stage = 'categorize'
+                        st.rerun()
+                    except (json.JSONDecodeError, ValueError) as e:
+                        st.error(f"❌ AI Extraction Failed: {e}. Try a clearer image.")
+                        st.code(json_string)
 
-# --- Load Data Based on Selection ---
-if selected_session == "All Sessions":
-    data = db_manager.get_all_data_from_all_schemas()
-else:
-    data = db_manager.get_data_from_schema(selected_session)
-
-# --- Main Page Display ---
-if not data:
-    st.warning("No data found for the selected session. Process a diagram first on the 'Processor' page!")
-else:
-    df = pd.DataFrame(data)
+elif st.session_state.stage == 'categorize':
+    st.title("✍️ Assign Categories")
+    data, info = st.session_state.extracted_data, st.session_state.extracted_data.get('info', {})
+    schema, items = data.get('session_schema'), info.get('items', [])
     
-    # --- CHAINED FILTERING LOGIC ---
-    df_filtered = df.copy() # Start with a copy of the full dataframe for this session/view
-
-    # --- NEW: FILTER BY GROUP NUMBER ---
-    # Get unique group numbers from the current data view
-    group_list = ["All Groups"] + sorted(df_filtered['group_no'].unique())
-    selected_group = st.sidebar.selectbox(
-        "Filter by Group No:",
-        options=group_list
-    )
-    # Apply the group filter if a specific group is chosen
-    if selected_group != "All Groups":
-        df_filtered = df_filtered[df_filtered['group_no'] == selected_group]
-
-    # --- EXISTING: FILTER BY CATEGORY ---
-    # Get unique categories from the *already group-filtered* data
-    category_list = ["All Categories"] + sorted(df_filtered['category_name'].unique())
-    selected_category = st.sidebar.selectbox(
-        "Filter by Category:",
-        options=category_list
-    )
-    # Apply the category filter if a specific category is chosen
-    if selected_category != "All Categories":
-        df_filtered = df_filtered[df_filtered['category_name'] == selected_category]
-
-    # --- Display KPIs based on the final filtered data ---
-    st.markdown("---")
-    st.markdown("##### At-a-Glance Summary")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Items (in view)", value=len(df_filtered))
-    col2.metric("Unique Categories (in view)", value=df_filtered['category_name'].nunique())
+    st.session_state.activity_name = st.text_input("Activity Name", info.get('activity_name', 'N/A'))
+    st.session_state.group_name = st.text_input("Group Name", info.get('group_name', 'N/A'))
     
-    if 'session' in df_filtered.columns:
-        num_sessions = df_filtered['session'].nunique()
-    else:
-        num_sessions = 1 if selected_session != "All Sessions" else 0
-    col3.metric("Sessions Viewed", value=num_sessions)
+    with st.form("category_form"):
+        st.markdown("---")
+        st.markdown("###### Items to Categorize")
+        processed_items = []
+        for i, item in enumerate(items):
+            with st.container(border=True):
+                col1, col2 = st.columns(2)
+                desc = col1.text_input("Description", item.get('description', ''), key=f"desc_{i}")
+                cat = col2.text_input("Category", key=f"cat_{i}")
+                processed_items.append({'description': desc, 'category': cat})
+        
+        if st.form_submit_button("💾 Save All to Database", use_container_width=True):
+            if not all(item['description'] and item['category'] for item in processed_items):
+                st.warning("⚠️ Please fill in all descriptions and categories.")
+            else:
+                with st.spinner("Saving..."):
+                    kumpulan_no = get_kumpulan_number(st.session_state.group_name)
+                    data_to_insert = [{'group_no': kumpulan_no, 'description': item['description'], 'category_name': item['category']} for item in processed_items]
+                    records_inserted = db_manager.insert_mindmap_data(data_to_insert, schema, st.session_state.activity_name)
+                    if records_inserted > 0:
+                        st.success(f"✅ Success! {records_inserted} records saved.")
+                        st.balloons()
+                        st.session_state.stage = 'setup' # Reset for next use
+                    else:
+                        st.error("❌ No records were inserted.")
 
-    # --- Display the final filtered dataframe ---
-    st.markdown("---")
-    st.markdown("##### Detailed Data View")
-    st.dataframe(df_filtered)
-
-    # --- Data Export Section (operates on filtered data) ---
-    st.markdown("---")
-    st.subheader("📥 Export Data")
-    st.write("Download the filtered data table above as a CSV file.")
-    @st.cache_data
-    def convert_df_to_csv(df_to_convert):
-        return df_to_convert.to_csv(index=False).encode('utf-8')
-    csv = convert_df_to_csv(df_filtered)
-    st.download_button(
-       label="Download as CSV",
-       data=csv,
-       file_name=f"{selected_session}_data.csv",
-       mime="text/csv",
-    )
-
-    # --- Visualization Section (operates on filtered data) ---
-    st.markdown("---")
-    st.subheader("📊 Visual Insights")
-    if not df_filtered.empty:
-        st.write("Item Count by Category")
-        category_counts = df_filtered['category_name'].value_counts()
-        st.bar_chart(category_counts)
-    else:
-        st.info("No data to visualize for the current filter.")
+    if st.button("❌ Start Over"):
+        reset_to_setup()
+        st.rerun()
