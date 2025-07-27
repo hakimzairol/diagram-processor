@@ -37,3 +37,6 @@ DB_PARAMS = {
     'host': db_host,
     'port': db_port
 }
+
+# Add this at the very end of config.py
+print("--- DEBUG: DB_PARAMS loaded in config.py ---", DB_PARAMS)

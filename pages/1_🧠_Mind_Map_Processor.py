@@ -41,7 +41,11 @@ if st.session_state.stage == 'setup':
                     st.error(f"❌ Failed to set up database schema '{session_name}'. Check DB connection.")
                 else:
                     image_bytes = uploaded_image.getvalue()
+                    
+                    # --- THIS IS THE FIX ---
+                    # We are now calling the correct function from gemini_client.py
                     json_string = gemini_client.get_gemini_response(image_bytes, "prompt.txt")
+                    
                     try:
                         extracted_info = json.loads(json_string)
                         if 'items' not in extracted_info: raise ValueError("Missing 'items' key")
@@ -52,6 +56,7 @@ if st.session_state.stage == 'setup':
                         st.error(f"❌ AI Extraction Failed: {e}. Try a clearer image.")
                         st.code(json_string)
 
+# The rest of the file for STAGE 2 remains the same as it was working correctly...
 elif st.session_state.stage == 'categorize':
     st.title("✍️ Assign Categories")
     data, info = st.session_state.extracted_data, st.session_state.extracted_data.get('info', {})
@@ -82,7 +87,8 @@ elif st.session_state.stage == 'categorize':
                     if records_inserted > 0:
                         st.success(f"✅ Success! {records_inserted} records saved.")
                         st.balloons()
-                        st.session_state.stage = 'setup' # Reset for next use
+                        st.session_state.stage = 'setup'
+                        st.rerun()
                     else:
                         st.error("❌ No records were inserted.")
 
