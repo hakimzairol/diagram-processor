@@ -3,6 +3,7 @@ import config
 import requests
 import json
 import base64
+import os # Import the os module
 
 GEMINI_API_KEY = config.gemini_api_key
 
@@ -15,7 +16,9 @@ def get_gemini_response(image_bytes: bytes, prompt_filename: str) -> str:
         raise ValueError("Gemini API key is not configured.")
 
     try:
-        with open(prompt_filename, "r") as f:
+        # Construct the full path to the prompt file
+        prompt_path = os.path.join(os.path.dirname(__file__), prompt_filename)
+        with open(prompt_path, "r") as f:
             prompt_text = f.read()
     except FileNotFoundError:
         return f'{{"error": "Prompt file not found: {prompt_filename}"}}'
@@ -34,7 +37,7 @@ def get_gemini_response(image_bytes: bytes, prompt_filename: str) -> str:
             ]
         }],
         "generationConfig": {
-            "responseMIMEType": "application/json"
+            "response_mime_type": "application/json" # CORRECTED TYPO
         }
     }
     

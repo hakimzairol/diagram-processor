@@ -1,91 +1,67 @@
-# pages/1_🧠_Mind_Map_Processor.py
+# pages/3_📊_Mind_Map_Dashboard.py
 import streamlit as st
+import pandas as pd
 import db_manager
-import gemini_client
-import re
-from PIL import Image
-import json
 
-def get_kumpulan_number(group_name_str: str) -> int:
-    if group_name_str:
-        match = re.search(r'\d+', group_name_str)
-        if match: return int(match.group(0))
-    return 0
+st.set_page_config(page_title="Mind Map Dashboard", page_icon="📊", layout="wide")
+st.title("📊 Mind Map Dashboard")
+st.markdown("View and filter data from all Mind Map & List sessions.")
 
-st.set_page_config(page_title="Mind Map Processor", page_icon="🧠", layout="centered")
+# --- Helper function to get data from all schemas ---
+def get_all_mindmap_data_from_all_schemas() -> list[dict]:
+    """Fetches all data from all mind map schemas and adds a 'session' column."""
+    all_data = []
+    session_schemas = db_manager.get_all_mindmap_sessions()
+    for schema in session_schemas:
+        schema_data = db_manager.get_mindmap_data_from_schema(schema)
+        for row in schema_data:
+            row['session'] = schema # Add the session name to each row
+            all_data.append(row)
+    return all_data
 
-if 'stage' not in st.session_state: st.session_state.stage = 'setup'
-if 'extracted_data' not in st.session_state: st.session_state.extracted_data = {}
+# --- Sidebar Filters ---
+st.sidebar.header("Filters")
+# --- THIS IS THE FIX ---
+# We add "All Sessions" to the beginning of the list
+session_list = ["All Sessions"] + db_manager.get_all_mindmap_sessions()
 
-def reset_to_setup():
-    st.session_state.stage = 'setup'
-    st.session_state.extracted_data = {}
-    for key in ['activity_name', 'group_name', 'session_name']:
-        if key in st.session_state: del st.session_state[key]
+if not session_list or len(session_list) == 1:
+    st.info("No Mind Map data has been saved yet. Please use the 'Mind Map Processor' first.")
+    st.stop()
 
-if st.session_state.stage == 'setup':
-    st.title("🧠 Mind Map & List Processor")
-    st.markdown("Upload a simple list or mind map to extract and categorize items.")
-    
-    session_name = st.text_input("Enter a name for this session (e.g., 'Q1_Marketing_2024')")
-    uploaded_image = st.file_uploader("Upload your image:", type=['jpg', 'jpeg', 'png'])
+selected_session = st.sidebar.selectbox("Select a Session:", options=session_list)
 
-    if uploaded_image: st.image(Image.open(uploaded_image), caption='Uploaded Diagram')
-
-    if st.button("Analyze Image", type="primary", use_container_width=True):
-        if not session_name or not uploaded_image:
-            st.warning("⚠️ Please provide a session name and upload an image.")
-        else:
-            with st.spinner("Processing..."):
-                if not db_manager.setup_mindmap_schema(session_name):
-                    st.error(f"❌ Failed to set up database schema '{session_name}'. Check DB connection.")
-                else:
-                    image_bytes = uploaded_image.getvalue()
-                    json_string = gemini_client.get_gemini_response(image_bytes, "prompt.txt")
-                    try:
-                        extracted_info = json.loads(json_string)
-                        if 'items' not in extracted_info: raise ValueError("Missing 'items' key")
-                        st.session_state.extracted_data = {"session_schema": db_manager.sanitize_name(session_name), "info": extracted_info}
-                        st.session_state.stage = 'categorize'
-                        st.rerun()
-                    except (json.JSONDecodeError, ValueError) as e:
-                        st.error(f"❌ AI Extraction Failed: {e}. Try a clearer image.")
-                        st.code(json_string)
-
-elif st.session_state.stage == 'categorize':
-    st.title("✍️ Assign Categories")
-    data, info = st.session_state.extracted_data, st.session_state.extracted_data.get('info', {})
-    schema, items = data.get('session_schema'), info.get('items', [])
-    
-    st.session_state.activity_name = st.text_input("Activity Name", info.get('activity_name', 'N/A'))
-    st.session_state.group_name = st.text_input("Group Name", info.get('group_name', 'N/A'))
-    
-    with st.form("category_form"):
-        st.markdown("---")
-        st.markdown("###### Items to Categorize")
-        processed_items = []
-        for i, item in enumerate(items):
-            with st.container(border=True):
-                col1, col2 = st.columns(2)
-                desc = col1.text_input("Description", item.get('description', ''), key=f"desc_{i}")
-                cat = col2.text_input("Category", key=f"cat_{i}")
-                processed_items.append({'description': desc, 'category': cat})
-        
-        if st.form_submit_button("💾 Save All to Database", use_container_width=True):
-            if not all(item['description'] and item['category'] for item in processed_items):
-                st.warning("⚠️ Please fill in all descriptions and categories.")
+# --- Session Management (Only show for specific sessions) ---
+if selected_session != "All Sessions":
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("⚠️ Delete This Session"):
+        st.warning(f"This will permanently delete the session '{selected_session}' and all its data.")
+        confirmation_text = st.text_input("Confirm by typing session name:", key="del_mm_confirm")
+        if st.button("DELETE PERMANENTLY", disabled=(confirmation_text != selected_session)):
+            if db_manager.delete_mindmap_session_schema(selected_session):
+                st.success(f"Session '{selected_session}' was deleted!"); st.rerun()
             else:
-                with st.spinner("Saving..."):
-                    kumpulan_no = get_kumpulan_number(st.session_state.group_name)
-                    data_to_insert = [{'group_no': kumpulan_no, 'description': item['description'], 'category_name': item['category']} for item in processed_items]
-                    records_inserted = db_manager.insert_mindmap_data(data_to_insert, schema, st.session_state.activity_name)
-                    if records_inserted > 0:
-                        st.success(f"✅ Success! {records_inserted} records saved.")
-                        st.balloons()
-                        st.session_state.stage = 'setup' # Reset for next use
-                    else:
-                        st.error("❌ No records were inserted.")
+                st.error("Error deleting session.")
 
-    if st.button("❌ Start Over"):
-        reset_to_setup()
-        st.rerun()
+# --- Load and Display Data ---
+# --- THIS IS THE NEW LOGIC ---
+if selected_session == "All Sessions":
+    st.markdown("### Displaying Data for: `All Sessions`")
+    data = get_all_mindmap_data_from_all_schemas()
+else:
+    st.markdown(f"### Data for Session: `{selected_session}`")
+    data = db_manager.get_mindmap_data_from_schema(selected_session)
+
+if not data:
+    st.warning(f"No data found for selection.")
+else:
+    df = pd.DataFrame(data)
+    
+    # Display the dataframe. If 'All Sessions' is selected, it will have the 'session' column.
+    st.dataframe(df, use_container_width=True)
+
+    # --- Simple Chart ---
+    st.markdown("---")
+    st.markdown("#### Category Counts")
+    if 'category_name' in df.columns:
+        st.bar_chart(df['category_name'].value_counts())
