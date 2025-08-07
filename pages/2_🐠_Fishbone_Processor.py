@@ -10,7 +10,6 @@ st.set_page_config(page_title="Fishbone Processor", page_icon="🐠", layout="wi
 st.title("🐠 Fishbone Diagram Processor")
 st.markdown("---")
 db_manager.create_fishbone_sessions_table()
-# Add this line at the top
 db_manager.add_comment_column_if_not_exists()
 db_manager.create_fishbone_table_if_not_exists()
 
