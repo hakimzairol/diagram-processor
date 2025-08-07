@@ -9,7 +9,8 @@ import gemini_client
 st.set_page_config(page_title="Fishbone Processor", page_icon="🐠", layout="wide")
 st.title("🐠 Fishbone Diagram Processor")
 st.markdown("---")
-db_manager.create_fishbone_table_if_not_exists()
+db_manager.create_fishbone_sessions_table()
+db_manager.create_fishbone_table_if_not_exiSsts()
 
 # --- State Management ---
 def initialize_state():
@@ -64,6 +65,8 @@ if st.session_state.fishbone_stage == 'setup':
 # In pages/2_🐠_Fishbone_Processor.py, replace the 'verify' and 'saved' stage blocks
 
 # --- STAGE 2: VERIFY & EDIT ---
+# In pages/2_🐠_Fishbone_Processor.py, replace the entire 'verify' stage block
+
 elif st.session_state.fishbone_stage == 'verify':
     st.header("Step 2: Verify and Correct the Extracted Data")
     st.info("The AI has extracted the data below. Double-click any cell to edit it. You can add or delete rows.")
@@ -74,12 +77,16 @@ elif st.session_state.fishbone_stage == 'verify':
     problem_statement = col1.text_input("Problem Statement", value=ai_data.get('problem_statement', ''))
     group_name = col2.text_input("Group/Client Name (Optional)", value=ai_data.get('group_name', ''))
 
+    # --- NEW: Add the comments text area ---
+    session_comments = st.text_area("Session Comments (Optional)", height=100, placeholder="Add any notes, context, or action items for this diagram here...")
+
     if 'fishbone_editable_df' not in st.session_state:
         df_temp = pd.DataFrame(flatten_ai_data(ai_data))
         st.session_state.fishbone_editable_df = df_temp.fillna('')
     
     st.subheader("Causal Details")
     
+    # ... (the rest of the UI code for the data editor is unchanged) ...
     df_to_edit = st.session_state.fishbone_editable_df
     if 'include' not in df_to_edit.columns:
         df_to_edit.insert(0, 'include', True)
@@ -102,15 +109,15 @@ elif st.session_state.fishbone_stage == 'verify':
     if col_save.button("💾 Save All Verified Data", type="primary", use_container_width=True):
         df_to_save = edited_df[edited_df['include'] == True]
         
-        is_valid = True
-        for index, row in df_to_save.iterrows():
-            if not row['main_cause'] or not row['detail']:
-                is_valid = False; break
+        is_valid = all(row['main_cause'] and row['detail'] for index, row in df_to_save.iterrows())
         
         if not is_valid:
             st.warning("⚠️ For all included rows, please ensure 'Main Cause' and 'Detail' are filled.")
         else:
-            with st.spinner("Saving to database..."):
+            with st.spinner("Saving data and comments..."):
+                # --- NEW: Save the comment to the database ---
+                db_manager.save_fishbone_session_comment(st.session_state.fishbone_session_name, session_comments)
+
                 records_to_insert = df_to_save.drop(columns=['include']).to_dict('records')
                 records_inserted = db_manager.insert_fishbone_data(
                     session_name=st.session_state.fishbone_session_name,
@@ -118,9 +125,7 @@ elif st.session_state.fishbone_stage == 'verify':
                     group_name=group_name,
                     verified_data=records_to_insert
                 )
-                if records_inserted > 0:
-                    # --- THE FIX ---
-                    # We ONLY set the stage to 'saved'. We DO NOT reset here.
+                if records_inserted > 0 or session_comments:
                     st.session_state.fishbone_stage = 'saved'
                     st.rerun()
                 else:
