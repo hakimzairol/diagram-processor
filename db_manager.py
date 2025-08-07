@@ -146,3 +146,60 @@ def get_all_fishbone_sessions():
         return []
     finally:
         if conn: conn.close()
+        
+# In db_manager.py, add these three new functions at the end of the Fishbone section
+
+def create_fishbone_sessions_table():
+    """Creates the fishbone_sessions table to store session-level metadata like comments."""
+    conn = None
+    create_table_command = """
+    CREATE TABLE IF NOT EXISTS fishbone_sessions (
+        session_name VARCHAR(255) PRIMARY KEY,
+        comments TEXT
+    );
+    """
+    try:
+        conn = psycopg2.connect(**config.DB_PARAMS)
+        with conn.cursor() as cur:
+            cur.execute(create_table_command)
+        conn.commit()
+        print("✅ 'fishbone_sessions' table checked/created successfully.")
+    except Exception as e:
+        print(f"❌ Error while creating 'fishbone_sessions' table: {e}")
+    finally:
+        if conn: conn.close()
+
+def save_fishbone_session_comment(session_name: str, comments: str):
+    """Inserts or updates a comment for a given session."""
+    conn = None
+    sql = """
+        INSERT INTO fishbone_sessions (session_name, comments)
+        VALUES (%s, %s)
+        ON CONFLICT (session_name) DO UPDATE SET comments = EXCLUDED.comments;
+    """
+    try:
+        conn = psycopg2.connect(**config.DB_PARAMS)
+        with conn.cursor() as cur:
+            cur.execute(sql, (session_name, comments))
+        conn.commit()
+        print(f"✅ Comment saved for session '{session_name}'.")
+    except Exception as e:
+        print(f"❌ Error saving comment for session '{session_name}': {e}")
+        if conn: conn.rollback()
+    finally:
+        if conn: conn.close()
+
+def get_fishbone_session_comment(session_name: str) -> str:
+    """Retrieves the comment for a given session."""
+    conn = None
+    try:
+        conn = psycopg2.connect(**config.DB_PARAMS)
+        with conn.cursor() as cur:
+            cur.execute("SELECT comments FROM fishbone_sessions WHERE session_name = %s;", (session_name,))
+            result = cur.fetchone()
+            return result[0] if result else ""
+    except Exception as e:
+        print(f"❌ Error fetching comment for session '{session_name}': {e}")
+        return ""
+    finally:
+        if conn: conn.close()

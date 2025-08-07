@@ -10,7 +10,7 @@ st.set_page_config(page_title="Fishbone Processor", page_icon="🐠", layout="wi
 st.title("🐠 Fishbone Diagram Processor")
 st.markdown("---")
 db_manager.create_fishbone_sessions_table()
-db_manager.create_fishbone_table_if_not_exiSsts()
+db_manager.create_fishbone_table_if_not_exists()
 
 # --- State Management ---
 def initialize_state():
