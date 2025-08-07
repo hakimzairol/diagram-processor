@@ -118,13 +118,23 @@ def create_fishbone_table_if_not_exists():
         if conn: conn.close()
 
 def insert_fishbone_data(session_name, problem_statement, group_name, verified_data):
+    """Inserts verified fishbone data, including the new row_comment."""
     conn = None
-    sql = "INSERT INTO fishbone_data (session_name, problem_statement, group_name, main_cause, sub_cause, detail) VALUES (%s, %s, %s, %s, %s, %s);"
+    # --- NEW: Updated SQL statement ---
+    sql = """
+        INSERT INTO fishbone_data (session_name, problem_statement, group_name, main_cause, sub_cause, detail, row_comment)
+        VALUES (%s, %s, %s, %s, %s, %s, %s);
+    """
     try:
         conn = psycopg2.connect(**config.DB_PARAMS)
         with conn.cursor() as cur:
             for item in verified_data:
-                cur.execute(sql, (session_name, problem_statement, group_name, item.get('main_cause'), item.get('sub_cause'), item.get('detail')))
+                # --- NEW: Pass the row_comment to the execute command ---
+                cur.execute(sql, (
+                    session_name, problem_statement, group_name,
+                    item.get('main_cause'), item.get('sub_cause'), item.get('detail'),
+                    item.get('row_comment', '') # Use .get() for safety
+                ))
         conn.commit()
         return len(verified_data)
     except Exception as e:
@@ -201,5 +211,34 @@ def get_fishbone_session_comment(session_name: str) -> str:
     except Exception as e:
         print(f"❌ Error fetching comment for session '{session_name}': {e}")
         return ""
+    finally:
+        if conn: conn.close()
+        
+def add_comment_column_if_not_exists():
+    """
+    A one-time migration function to add the 'row_comment' column to the fishbone_data table.
+    This is a safe operation and will not run if the column already exists.
+    """
+    conn = None
+    check_column_sql = """
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'fishbone_data' AND column_name = 'row_comment';
+    """
+    add_column_sql = "ALTER TABLE fishbone_data ADD COLUMN row_comment TEXT;"
+    try:
+        conn = psycopg2.connect(**config.DB_PARAMS)
+        with conn.cursor() as cur:
+            cur.execute(check_column_sql)
+            if cur.fetchone() is None:
+                # Column does not exist, so we add it
+                cur.execute(add_column_sql)
+                conn.commit()
+                print("✅ Column 'row_comment' added to 'fishbone_data' table.")
+            else:
+                # Column already exists, do nothing
+                print("ℹ️ Column 'row_comment' already exists in 'fishbone_data' table.")
+    except Exception as e:
+        print(f"❌ Error during migration for 'row_comment' column: {e}")
+        if conn: conn.rollback()
     finally:
         if conn: conn.close()

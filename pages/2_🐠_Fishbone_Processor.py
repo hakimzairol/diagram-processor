@@ -10,6 +10,8 @@ st.set_page_config(page_title="Fishbone Processor", page_icon="🐠", layout="wi
 st.title("🐠 Fishbone Diagram Processor")
 st.markdown("---")
 db_manager.create_fishbone_sessions_table()
+# Add this line at the top
+db_manager.add_comment_column_if_not_exists()
 db_manager.create_fishbone_table_if_not_exists()
 
 # --- State Management ---
@@ -91,13 +93,16 @@ elif st.session_state.fishbone_stage == 'verify':
     if 'include' not in df_to_edit.columns:
         df_to_edit.insert(0, 'include', True)
 
+        # Find the data_editor and replace its column_config
     edited_df = st.data_editor(
-        df_to_edit,
+        st.session_state.fishbone_editable_df,
         column_config={
             "include": st.column_config.CheckboxColumn("Include?", help="Uncheck to exclude this row from saving.", default=True),
             "main_cause": st.column_config.TextColumn("Main Cause", required=True),
             "sub_cause": st.column_config.TextColumn("Sub Cause (Optional)"),
             "detail": st.column_config.TextColumn("Detail", required=True),
+            # --- NEW: Add the optional comment column ---
+            "row_comment": st.column_config.TextColumn("Comment (Optional)")
         },
         num_rows="dynamic", use_container_width=True
     )
